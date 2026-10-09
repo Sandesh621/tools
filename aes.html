@@ -1,0 +1,892 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AES-256 Crypto Vault</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        vault: {
+                            50: '#f8fafc',
+                            100: '#f1f5f9',
+                            200: '#e2e8f0',
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'Inter', sans-serif; }
+        .font-mono { font-family: 'JetBrains Mono', monospace; }
+        /* Custom scrollbar */
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-track { background: rgba(241, 245, 249, 0.6); }
+        ::-webkit-scrollbar-thumb { background: rgba(148, 163, 184, 0.8); border-radius: 3px; }
+        ::-webkit-scrollbar-thumb:hover { background: rgba(99, 102, 241, 0.8); }
+    </style>
+</head>
+<body class="bg-slate-50 text-slate-900 min-h-screen flex flex-col justify-between selection:bg-indigo-500 selection:text-white">
+
+    <!-- Header -->
+    <header class="border-b border-slate-200 bg-white/80 backdrop-blur-md sticky top-0 z-40">
+        <div class="max-w-5xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between">
+            <div class="flex items-center space-x-3">
+                <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-indigo-600 to-violet-500 flex items-center justify-center shadow-lg shadow-indigo-500/20">
+                    <i data-lucide="shield-check" class="w-5 h-5 text-white"></i>
+                </div>
+                <div>
+                    <h1 class="font-bold text-base sm:text-lg tracking-tight bg-gradient-to-r from-slate-900 via-indigo-600 to-indigo-500 bg-clip-text text-transparent">AES-256 Vault</h1>
+                    <p class="text-xs text-slate-500 font-medium hidden sm:block">Client-Side Military-Grade Encryption</p>
+                </div>
+            </div>
+            <div class="flex items-center space-x-2">
+                <span class="inline-flex items-center space-x-1.5 px-3 py-1 rounded-full text-xs font-medium bg-emerald-100 text-emerald-700 border border-emerald-200">
+                    <span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+                    <span>Zero-Knowledge / WebCrypto</span>
+                </span>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Container -->
+    <main class="max-w-4xl w-full mx-auto px-4 py-8 sm:py-12 flex-grow flex flex-col">
+
+        <!-- Notification Toast -->
+        <div id="toast" class="fixed top-20 right-4 z-50 transform translate-y-[-200%] opacity-0 transition-all duration-300 bg-white border border-indigo-200 text-slate-800 px-4 py-3 rounded-xl shadow-2xl flex items-center space-x-3 max-w-sm">
+            <div id="toast-icon" class="text-indigo-600"></div>
+            <div id="toast-message" class="text-sm font-medium"></div>
+        </div>
+
+        <!-- Mode Toggle Tabs (Encrypt vs Decrypt) -->
+        <div class="flex rounded-2xl bg-slate-200/50 border border-slate-200 p-1.5 mb-8 shadow-inner">
+            <button onclick="vaultApp.switchTab('encrypt')" id="tab-encrypt" class="flex-1 py-3 px-4 rounded-xl font-semibold text-sm transition-all duration-200 flex items-center justify-center space-x-2 bg-indigo-600 text-white shadow-lg shadow-indigo-600/25">
+                <i data-lucide="lock" class="w-4 h-4"></i>
+                <span>Encrypt Data</span>
+            </button>
+            <button onclick="vaultApp.switchTab('decrypt')" id="tab-decrypt" class="flex-1 py-3 px-4 rounded-xl font-semibold text-sm transition-all duration-200 flex items-center justify-center space-x-2 text-slate-500 hover:text-slate-700 hover:bg-slate-200/50">
+                <i data-lucide="unlock" class="w-4 h-4"></i>
+                <span>Decrypt Data</span>
+            </button>
+        </div>
+
+        <!-- DataType Sub-tabs (Text vs File) -->
+        <div class="flex items-center justify-between mb-6">
+            <div class="flex space-x-2">
+                <button onclick="vaultApp.switchType('text')" id="type-text" class="px-4 py-2 rounded-xl text-xs sm:text-sm font-semibold transition bg-white text-indigo-700 border border-indigo-200 shadow-sm flex items-center space-x-2">
+                    <i data-lucide="file-text" class="w-4 h-4"></i>
+                    <span>Text Message</span>
+                </button>
+                <button onclick="vaultApp.switchType('file')" id="type-file" class="px-4 py-2 rounded-xl text-xs sm:text-sm font-semibold transition bg-slate-100 text-slate-500 border border-slate-200 hover:bg-white hover:text-slate-700 flex items-center space-x-2">
+                    <i data-lucide="file-archive" class="w-4 h-4"></i>
+                    <span>File (.html format)</span>
+                </button>
+            </div>
+            <div class="text-xs text-slate-500 hidden sm:block font-mono">Algorithm: AES-GCM (256-bit) + PBKDF2 (100k iter)</div>
+        </div>
+
+        <!-- Passphrase Section (Shared between modes) -->
+        <div class="bg-white border border-slate-200 rounded-3xl p-6 shadow-xl mb-6 backdrop-blur-md">
+            <label class="block text-xs font-semibold uppercase tracking-wider text-indigo-600 mb-2 flex items-center justify-between">
+                <span class="flex items-center space-x-1.5">
+                    <i data-lucide="key" class="w-4 h-4"></i>
+                    <span id="passphrase-label">Encryption Passphrase</span>
+                </span>
+                <span id="strength-text" class="text-slate-500 font-normal normal-case">Enter a strong passphrase</span>
+            </label>
+            <div class="relative mb-3">
+                <input type="password" id="passphrase-input" oninput="vaultApp.checkPassphraseStrength(this.value)" placeholder="Enter secure secret passphrase..." class="w-full bg-slate-50 border border-slate-200 rounded-2xl px-4 py-3.5 pr-12 text-sm text-slate-900 placeholder-slate-400 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition font-mono">
+                <button onclick="vaultApp.togglePasswordVisibility()" class="absolute right-4 top-3.5 text-slate-400 hover:text-slate-600 transition">
+                    <i id="eye-icon" data-lucide="eye" class="w-5 h-5"></i>
+                </button>
+            </div>
+            <!-- Strength Bar -->
+            <div class="w-full bg-slate-100 h-1.5 rounded-full overflow-hidden border border-slate-200">
+                <div id="strength-bar" class="bg-red-500 h-full w-0 transition-all duration-300"></div>
+            </div>
+        </div>
+
+        <!-- SECTION A: ENCRYPT VIEW -->
+        <div id="section-encrypt" class="space-y-6">
+            <!-- Text Encrypt Box -->
+            <div id="box-encrypt-text" class="bg-white border border-slate-200 rounded-3xl p-6 shadow-xl backdrop-blur-md space-y-4">
+                <div>
+                    <div class="flex items-center justify-between mb-2">
+                        <label class="block text-xs font-semibold uppercase tracking-wider text-slate-600">Message / Ciphertext</label>
+                        <button id="copy-enc-btn" onclick="vaultApp.copyToClipboard('plaintext-input')" class="hidden px-2 py-1 bg-slate-100 hover:bg-slate-200 text-indigo-700 rounded-xl text-xs font-medium transition flex items-center space-x-1">
+                            <i data-lucide="copy" class="w-3.5 h-3.5"></i>
+                            <span>Copy Result</span>
+                        </button>
+                    </div>
+                    <!-- Single Box for both Input & Output -->
+                    <textarea id="plaintext-input" oninput="vaultApp.hideCopyButton('copy-enc-btn')" rows="5" placeholder="Type or paste your secret message here..." class="w-full bg-slate-50 border border-slate-200 rounded-2xl p-4 text-sm text-slate-900 placeholder-slate-400 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition resize-none"></textarea>
+                </div>
+                <button onclick="vaultApp.encryptText()" class="w-full py-4 bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-500 hover:to-violet-500 text-white font-semibold rounded-2xl shadow-lg shadow-indigo-600/25 transition flex items-center justify-center space-x-2">
+                    <i data-lucide="lock" class="w-5 h-5"></i>
+                    <span>Encrypt Message</span>
+                </button>
+            </div>
+
+            <!-- File Encrypt Box -->
+            <div id="box-encrypt-file" class="hidden bg-white border border-slate-200 rounded-3xl p-6 shadow-xl backdrop-blur-md space-y-6">
+                <div id="encrypt-dropzone" class="border-2 border-dashed border-slate-300 hover:border-indigo-500 bg-slate-50 hover:bg-slate-100 rounded-2xl p-8 text-center cursor-pointer transition relative group">
+                    <input type="file" id="encrypt-file-input" onchange="vaultApp.handleEncryptFileSelect(this.files[0])" class="absolute inset-0 opacity-0 cursor-pointer w-full h-full z-10">
+                    <div class="flex flex-col items-center">
+                        <div class="w-16 h-16 rounded-2xl bg-indigo-50 border border-indigo-100 flex items-center justify-center text-indigo-500 mb-4 group-hover:scale-110 transition-transform">
+                            <i data-lucide="upload-cloud" class="w-8 h-8"></i>
+                        </div>
+                        <h3 id="encrypt-file-name" class="font-bold text-slate-800 mb-1">Drop any file to encrypt</h3>
+                        <p class="text-xs text-slate-500">Outputs as a secure <span class="text-indigo-600 font-mono">.html</span> file (Max 200 MB)</p>
+                    </div>
+                </div>
+
+                <div id="encrypt-progress-container" class="hidden space-y-2">
+                    <div class="flex justify-between text-xs text-slate-600 font-medium">
+                        <span id="encrypt-progress-label">Encrypting file into .html format...</span>
+                        <span id="encrypt-progress-percent">0%</span>
+                    </div>
+                    <div class="w-full bg-slate-100 h-2.5 rounded-full overflow-hidden border border-slate-200">
+                        <div id="encrypt-progress-bar" class="bg-indigo-500 h-full w-0 transition-all duration-150"></div>
+                    </div>
+                </div>
+
+                <!-- Toggle for Filename Encryption -->
+                <div class="flex items-center space-x-3 bg-slate-50 p-3 rounded-xl border border-slate-200">
+                    <input type="checkbox" id="obscure-name-checkbox" class="w-4 h-4 text-indigo-600 bg-white border-slate-300 rounded focus:ring-indigo-500 focus:ring-2 cursor-pointer">
+                    <label for="obscure-name-checkbox" class="text-sm text-slate-700 font-medium cursor-pointer select-none flex-1">
+                        Encrypt file name <span class="text-xs text-slate-500 block mt-0.5">Saves output using a randomized encrypted text name</span>
+                    </label>
+                </div>
+
+                <button id="encrypt-file-btn" onclick="vaultApp.encryptFile()" disabled class="w-full py-4 bg-slate-100 text-slate-400 font-semibold rounded-2xl transition flex items-center justify-center space-x-2 cursor-not-allowed">
+                    <i data-lucide="lock" class="w-5 h-5"></i>
+                    <span>Encrypt & Download (.html)</span>
+                </button>
+            </div>
+        </div>
+
+        <!-- SECTION B: DECRYPT VIEW -->
+        <div id="section-decrypt" class="space-y-6 hidden">
+            <!-- Text Decrypt Box -->
+            <div id="box-decrypt-text" class="bg-white border border-slate-200 rounded-3xl p-6 shadow-xl backdrop-blur-md space-y-4">
+                <div>
+                    <div class="flex items-center justify-between mb-2">
+                        <label class="block text-xs font-semibold uppercase tracking-wider text-slate-600">Ciphertext / Message</label>
+                        <button id="copy-dec-btn" onclick="vaultApp.copyToClipboard('ciphertext-input')" class="hidden px-2 py-1 bg-slate-100 hover:bg-slate-200 text-emerald-700 rounded-xl text-xs font-medium transition flex items-center space-x-1">
+                            <i data-lucide="copy" class="w-3.5 h-3.5"></i>
+                            <span>Copy Result</span>
+                        </button>
+                    </div>
+                    <!-- Single Box for both Input & Output -->
+                    <textarea id="ciphertext-input" oninput="vaultApp.hideCopyButton('copy-dec-btn')" rows="5" placeholder="Paste encrypted Base64 payload here..." class="w-full bg-slate-50 border border-slate-200 rounded-2xl p-4 text-sm text-slate-900 placeholder-slate-400 focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 transition resize-none font-mono"></textarea>
+                </div>
+                <button onclick="vaultApp.decryptText()" class="w-full py-4 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-semibold rounded-2xl shadow-lg shadow-emerald-600/25 transition flex items-center justify-center space-x-2">
+                    <i data-lucide="unlock" class="w-5 h-5"></i>
+                    <span>Decrypt Message</span>
+                </button>
+            </div>
+
+            <!-- File Decrypt Box -->
+            <div id="box-decrypt-file" class="hidden bg-white border border-slate-200 rounded-3xl p-6 shadow-xl backdrop-blur-md space-y-6">
+                <div id="decrypt-dropzone" class="border-2 border-dashed border-slate-300 hover:border-emerald-500 bg-slate-50 hover:bg-slate-100 rounded-2xl p-8 text-center cursor-pointer transition relative group">
+                    <input type="file" id="decrypt-file-input" onchange="vaultApp.handleDecryptFileSelect(this.files[0])" class="absolute inset-0 opacity-0 cursor-pointer w-full h-full z-10">
+                    <div class="flex flex-col items-center">
+                        <div class="w-16 h-16 rounded-2xl bg-emerald-50 border border-emerald-100 flex items-center justify-center text-emerald-600 mb-4 group-hover:scale-110 transition-transform">
+                            <i data-lucide="download-cloud" class="w-8 h-8"></i>
+                        </div>
+                        <h3 id="decrypt-file-name" class="font-bold text-slate-800 mb-1">Drop encrypted .html file</h3>
+                        <p class="text-xs text-slate-500">Select previously generated encrypted file (Max 350 MB)</p>
+                    </div>
+                </div>
+
+                <div id="decrypt-progress-container" class="hidden space-y-2">
+                    <div class="flex justify-between text-xs text-slate-600 font-medium">
+                        <span id="decrypt-progress-label">Restoring original file from .html...</span>
+                        <span id="decrypt-progress-percent">0%</span>
+                    </div>
+                    <div class="w-full bg-slate-100 h-2.5 rounded-full overflow-hidden border border-slate-200">
+                        <div id="decrypt-progress-bar" class="bg-emerald-500 h-full w-0 transition-all duration-150"></div>
+                    </div>
+                </div>
+
+                <button id="decrypt-file-btn" onclick="vaultApp.decryptFile()" disabled class="w-full py-4 bg-slate-100 text-slate-400 font-semibold rounded-2xl transition flex items-center justify-center space-x-2 cursor-not-allowed">
+                    <i data-lucide="unlock" class="w-5 h-5"></i>
+                    <span>Decrypt & Restore Original File</span>
+                </button>
+            </div>
+        </div>
+
+    </main>
+
+    <!-- Footer -->
+    <footer class="w-full py-6 text-center text-xs text-slate-400 border-t border-slate-200">
+        <p>AES-256 Crypto Vault • Secure WebCrypto Implementation</p>
+    </footer>
+
+    <!-- JavaScript Implementation -->
+    <script>
+        class AESVaultApp {
+            constructor() {
+                this.currentTab = 'encrypt'; 
+                this.currentType = 'text'; 
+                this.selectedEncryptFile = null;
+                this.selectedDecryptFile = null;
+
+                this.initLucide();
+            }
+
+            initLucide() {
+                lucide.createIcons();
+            }
+
+            showToast(message, type = 'success') {
+                const toast = document.getElementById('toast');
+                const msg = document.getElementById('toast-message');
+                const icon = document.getElementById('toast-icon');
+                
+                msg.textContent = message;
+                icon.innerHTML = type === 'success' 
+                    ? '<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-emerald-500"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></svg>'
+                    : '<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-rose-500"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg>';
+
+                toast.classList.remove('translate-y-[-200%]', 'opacity-0');
+                setTimeout(() => {
+                    toast.classList.add('translate-y-[-200%]', 'opacity-0');
+                }, 3500);
+            }
+
+            switchTab(tab) {
+                this.currentTab = tab;
+                const encTab = document.getElementById('tab-encrypt');
+                const decTab = document.getElementById('tab-decrypt');
+                const encSec = document.getElementById('section-encrypt');
+                const decSec = document.getElementById('section-decrypt');
+
+                // ---- RESET TEXT UI UPON TAB SWITCH ----
+                const plainInput = document.getElementById('plaintext-input');
+                if (plainInput) {
+                    plainInput.value = '';
+                    plainInput.classList.remove('font-mono', 'text-emerald-700');
+                }
+                const copyEncBtn = document.getElementById('copy-enc-btn');
+                if (copyEncBtn) copyEncBtn.classList.add('hidden');
+
+                const cipherInput = document.getElementById('ciphertext-input');
+                if (cipherInput) {
+                    cipherInput.value = '';
+                    cipherInput.classList.remove('font-mono', 'text-emerald-700');
+                }
+                const copyDecBtn = document.getElementById('copy-dec-btn');
+                if (copyDecBtn) copyDecBtn.classList.add('hidden');
+                // ---------------------------------------
+
+                if (tab === 'encrypt') {
+                    encTab.className = 'flex-1 py-3 px-4 rounded-xl font-semibold text-sm transition-all duration-200 flex items-center justify-center space-x-2 bg-indigo-600 text-white shadow-lg shadow-indigo-600/25';
+                    decTab.className = 'flex-1 py-3 px-4 rounded-xl font-semibold text-sm transition-all duration-200 flex items-center justify-center space-x-2 text-slate-500 hover:text-slate-700 hover:bg-slate-200/50';
+                    encSec.classList.remove('hidden');
+                    decSec.classList.add('hidden');
+                } else {
+                    decTab.className = 'flex-1 py-3 px-4 rounded-xl font-semibold text-sm transition-all duration-200 flex items-center justify-center space-x-2 bg-emerald-600 text-white shadow-lg shadow-emerald-600/25';
+                    encTab.className = 'flex-1 py-3 px-4 rounded-xl font-semibold text-sm transition-all duration-200 flex items-center justify-center space-x-2 text-slate-500 hover:text-slate-700 hover:bg-slate-200/50';
+                    decSec.classList.remove('hidden');
+                    encSec.classList.add('hidden');
+                }
+                this.updateTypeUI();
+            }
+
+            switchType(type) {
+                this.currentType = type;
+                this.updateTypeUI();
+            }
+
+            updateTypeUI() {
+                const btnText = document.getElementById('type-text');
+                const btnFile = document.getElementById('type-file');
+
+                const boxEncText = document.getElementById('box-encrypt-text');
+                const boxEncFile = document.getElementById('box-encrypt-file');
+                const boxDecText = document.getElementById('box-decrypt-text');
+                const boxDecFile = document.getElementById('box-decrypt-file');
+
+                if (this.currentType === 'text') {
+                    btnText.className = 'px-4 py-2 rounded-xl text-xs sm:text-sm font-semibold transition bg-white text-indigo-700 border border-indigo-200 shadow-sm flex items-center space-x-2';
+                    btnFile.className = 'px-4 py-2 rounded-xl text-xs sm:text-sm font-semibold transition bg-slate-100 text-slate-500 border border-slate-200 hover:bg-white hover:text-slate-700 flex items-center space-x-2';
+                    
+                    boxEncText.classList.remove('hidden');
+                    boxEncFile.classList.add('hidden');
+                    boxDecText.classList.remove('hidden');
+                    boxDecFile.classList.add('hidden');
+                } else {
+                    btnFile.className = 'px-4 py-2 rounded-xl text-xs sm:text-sm font-semibold transition bg-white text-indigo-700 border border-indigo-200 shadow-sm flex items-center space-x-2';
+                    btnText.className = 'px-4 py-2 rounded-xl text-xs sm:text-sm font-semibold transition bg-slate-100 text-slate-500 border border-slate-200 hover:bg-white hover:text-slate-700 flex items-center space-x-2';
+                    
+                    boxEncText.classList.add('hidden');
+                    boxEncFile.classList.remove('hidden');
+                    boxDecText.classList.add('hidden');
+                    boxDecFile.classList.remove('hidden');
+                }
+            }
+
+            togglePasswordVisibility() {
+                const input = document.getElementById('passphrase-input');
+                const icon = document.getElementById('eye-icon');
+                if (input.type === 'password') {
+                    input.type = 'text';
+                    icon.setAttribute('data-lucide', 'eye-off');
+                } else {
+                    input.type = 'password';
+                    icon.setAttribute('data-lucide', 'eye');
+                }
+                this.initLucide();
+            }
+
+            checkPassphraseStrength(val) {
+                const bar = document.getElementById('strength-bar');
+                const strengthText = document.getElementById('strength-text');
+                if (!val) {
+                    bar.style.width = '0%';
+                    bar.className = 'bg-red-500 h-full transition-all duration-300';
+                    strengthText.textContent = 'Enter a strong passphrase';
+                    return;
+                }
+
+                let score = 0;
+                if (val.length >= 8) score++;
+                if (val.length >= 12) score++;
+                if (/[A-Z]/.test(val)) score++;
+                if (/[0-9]/.test(val)) score++;
+                if (/[^A-Za-z0-9]/.test(val)) score++;
+
+                const percentages = ['20%', '40%', '60%', '80%', '100%'];
+                const colors = ['bg-red-500', 'bg-orange-500', 'bg-amber-500', 'bg-blue-500', 'bg-emerald-500'];
+                const labels = ['Very Weak', 'Weak', 'Fair', 'Strong', 'Military Grade'];
+
+                bar.style.width = percentages[score - 1] || '10%';
+                bar.className = `${colors[score - 1] || 'bg-red-500'} h-full transition-all duration-300`;
+                strengthText.textContent = labels[score - 1] || 'Very Weak';
+            }
+
+            // ================= ANIMATION UTILS =================
+            
+            // Creates a fast matrix-like scrolling scramble effect before revealing final string
+            async scrambleAnimation(element, finalString) {
+                const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!@#$%^&*()_+-=[]{}|;:,.<>?';
+                const iterations = 15;
+                const delay = 35; // ms per frame
+                const displayLength = Math.min(finalString.length, 600); // Prevent browser lag on huge files
+
+                element.disabled = true; // Prevent typing during animation
+
+                for (let i = 0; i < iterations; i++) {
+                    let jumbled = '';
+                    for (let j = 0; j < displayLength; j++) {
+                        jumbled += chars.charAt(Math.floor(Math.random() * chars.length));
+                    }
+                    if (finalString.length > 600) jumbled += '... [processing remainder]';
+                    element.value = jumbled;
+                    
+                    // Wait for next frame
+                    await new Promise(resolve => setTimeout(resolve, delay));
+                }
+
+                element.value = finalString;
+                element.disabled = false;
+            }
+
+            // ================= CRYPTO CORE UTILS =================
+
+            async deriveKey(passphrase, salt, usage = ['encrypt', 'decrypt']) {
+                const enc = new TextEncoder();
+                const keyMaterial = await window.crypto.subtle.importKey(
+                    'raw',
+                    enc.encode(passphrase),
+                    { name: 'PBKDF2' },
+                    false,
+                    ['deriveKey']
+                );
+
+                return await window.crypto.subtle.deriveKey(
+                    {
+                        name: 'PBKDF2',
+                        salt: salt,
+                        iterations: 100000,
+                        hash: 'SHA-256'
+                    },
+                    keyMaterial,
+                    { name: 'AES-GCM', length: 256 },
+                    false,
+                    usage
+                );
+            }
+
+            // Async native Base64 encoding to prevent browser freeze on large payloads
+            async arrayBufferToBase64Async(buffer) {
+                return new Promise((resolve, reject) => {
+                    const blob = new Blob([buffer], { type: 'application/octet-stream' });
+                    const reader = new FileReader();
+                    reader.onload = () => {
+                        const dataUrl = reader.result;
+                        const base64 = dataUrl.split(',')[1];
+                        resolve(base64);
+                    };
+                    reader.onerror = reject;
+                    reader.readAsDataURL(blob);
+                });
+            }
+
+            // Async native Base64 decoding to prevent browser freeze on large payloads
+            async base64ToArrayBufferAsync(base64) {
+                const dataUrl = "data:application/octet-stream;base64," + base64;
+                const response = await fetch(dataUrl);
+                return await response.arrayBuffer();
+            }
+
+            // ================= TEXT ENCRYPTION / DECRYPTION =================
+
+            async encryptText() {
+                const passphrase = document.getElementById('passphrase-input').value;
+                const inputElement = document.getElementById('plaintext-input');
+                const plaintext = inputElement.value;
+
+                if (!passphrase) {
+                    this.showToast('Please enter an encryption passphrase.', 'error');
+                    return;
+                }
+                if (!plaintext) {
+                    this.showToast('Please enter a plaintext message.', 'error');
+                    return;
+                }
+
+                try {
+                    const salt = window.crypto.getRandomValues(new Uint8Array(16));
+                    const iv = window.crypto.getRandomValues(new Uint8Array(12));
+                    const key = await this.deriveKey(passphrase, salt, ['encrypt']);
+
+                    const enc = new TextEncoder();
+                    const ciphertext = await window.crypto.subtle.encrypt(
+                        { name: 'AES-GCM', iv: iv },
+                        key,
+                        enc.encode(plaintext)
+                    );
+
+                    const combined = new Uint8Array(salt.byteLength + iv.byteLength + ciphertext.byteLength);
+                    combined.set(salt, 0);
+                    combined.set(iv, salt.byteLength);
+                    combined.set(new Uint8Array(ciphertext), salt.byteLength + iv.byteLength);
+
+                    // Use native async base64 encoding
+                    const base64Result = await this.arrayBufferToBase64Async(combined.buffer);
+
+                    // Execute visual text scrambling animation before replacing value
+                    await this.scrambleAnimation(inputElement, base64Result);
+                    
+                    document.getElementById('copy-enc-btn').classList.remove('hidden');
+                    inputElement.classList.add('font-mono', 'text-emerald-700'); // Style output to look like hash
+                    
+                    this.showToast('Message encrypted successfully!');
+                    
+                    // Clear password on success
+                    document.getElementById('passphrase-input').value = '';
+                    this.checkPassphraseStrength('');
+                } catch (err) {
+                    console.error(err);
+                    this.showToast('Encryption failed. Check inputs.', 'error');
+                }
+            }
+
+            async decryptText() {
+                const passphrase = document.getElementById('passphrase-input').value;
+                const inputElement = document.getElementById('ciphertext-input');
+                
+                // CRITICAL FIX: Strip all whitespace/newlines from input before processing
+                const ciphertextBase64 = inputElement.value.replace(/[\r\n\s]+/g, '');
+
+                if (!passphrase) {
+                    this.showToast('Please enter your passphrase.', 'error');
+                    return;
+                }
+                if (!ciphertextBase64) {
+                    this.showToast('Please enter the ciphertext.', 'error');
+                    return;
+                }
+
+                try {
+                    // Use native async base64 decoding
+                    const combined = await this.base64ToArrayBufferAsync(ciphertextBase64);
+                    
+                    const salt = combined.slice(0, 16);
+                    const iv = combined.slice(16, 28);
+                    const data = combined.slice(28);
+
+                    const key = await this.deriveKey(passphrase, salt, ['decrypt']);
+                    const decrypted = await window.crypto.subtle.decrypt(
+                        { name: 'AES-GCM', iv: new Uint8Array(iv) },
+                        key,
+                        data
+                    );
+
+                    const dec = new TextDecoder();
+                    const plaintext = dec.decode(decrypted);
+
+                    // Execute visual text scrambling animation before replacing value
+                    await this.scrambleAnimation(inputElement, plaintext);
+                    
+                    document.getElementById('copy-dec-btn').classList.remove('hidden');
+                    inputElement.classList.remove('font-mono', 'text-emerald-700'); // Revert to standard text style
+                    
+                    this.showToast('Message decrypted successfully!');
+
+                    // Clear password on success
+                    document.getElementById('passphrase-input').value = '';
+                    this.checkPassphraseStrength('');
+                } catch (err) {
+                    console.error(err);
+                    this.showToast('Decryption failed! Incorrect passphrase or corrupted data.', 'error');
+                }
+            }
+
+            copyToClipboard(elementId) {
+                const output = document.getElementById(elementId);
+                output.select();
+                document.execCommand('copy');
+                this.showToast('Copied to clipboard!');
+            }
+            
+            hideCopyButton(btnId) {
+                document.getElementById(btnId).classList.add('hidden');
+                // Remove green hash styling if user starts typing new text over an encrypted block
+                document.getElementById('plaintext-input').classList.remove('font-mono', 'text-emerald-700');
+            }
+
+            // ================= FILE ENCRYPTION / DECRYPTION UTILS =================
+
+            clearEncryptFileData() {
+                this.selectedEncryptFile = null;
+                const fileInput = document.getElementById('encrypt-file-input');
+                if (fileInput) fileInput.value = '';
+                
+                document.getElementById('encrypt-file-name').textContent = 'Drop any file to encrypt';
+                
+                const btn = document.getElementById('encrypt-file-btn');
+                btn.disabled = true;
+                btn.className = 'w-full py-4 bg-slate-100 text-slate-400 font-semibold rounded-2xl transition flex items-center justify-center space-x-2 cursor-not-allowed';
+                
+                // Clear password
+                const passInput = document.getElementById('passphrase-input');
+                if (passInput) {
+                    passInput.value = '';
+                    this.checkPassphraseStrength('');
+                }
+
+                // Hide progress bar after a brief delay
+                setTimeout(() => {
+                    document.getElementById('encrypt-progress-container').classList.add('hidden');
+                    document.getElementById('encrypt-progress-bar').style.width = '0%';
+                }, 1500);
+            }
+
+            clearDecryptFileData() {
+                this.selectedDecryptFile = null;
+                const fileInput = document.getElementById('decrypt-file-input');
+                if (fileInput) fileInput.value = '';
+                
+                document.getElementById('decrypt-file-name').textContent = 'Drop encrypted .html file';
+                
+                const btn = document.getElementById('decrypt-file-btn');
+                btn.disabled = true;
+                btn.className = 'w-full py-4 bg-slate-100 text-slate-400 font-semibold rounded-2xl transition flex items-center justify-center space-x-2 cursor-not-allowed';
+                
+                // Clear password
+                const passInput = document.getElementById('passphrase-input');
+                if (passInput) {
+                    passInput.value = '';
+                    this.checkPassphraseStrength('');
+                }
+
+                // Hide progress bar after a brief delay
+                setTimeout(() => {
+                    document.getElementById('decrypt-progress-container').classList.add('hidden');
+                    document.getElementById('decrypt-progress-bar').style.width = '0%';
+                }, 1500);
+            }
+
+            handleEncryptFileSelect(file) {
+                if (!file) return;
+                
+                // Limit file to 200 MB to prevent browser crash
+                const MAX_FILE_SIZE = 200 * 1024 * 1024;
+                if (file.size > MAX_FILE_SIZE) {
+                    this.showToast('File exceeds the 200 MB maximum size limit.', 'error');
+                    this.clearEncryptFileData();
+                    return;
+                }
+
+                this.selectedEncryptFile = file;
+                document.getElementById('encrypt-file-name').textContent = file.name;
+                const btn = document.getElementById('encrypt-file-btn');
+                btn.disabled = false;
+                btn.className = 'w-full py-4 bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-500 hover:to-violet-500 text-white font-semibold rounded-2xl shadow-lg shadow-indigo-600/25 transition flex items-center justify-center space-x-2 cursor-pointer';
+            }
+
+            handleDecryptFileSelect(file) {
+                if (!file) return;
+                
+                // Limit file to 350 MB to account for Base64 expansion
+                const MAX_FILE_SIZE = 350 * 1024 * 1024;
+                if (file.size > MAX_FILE_SIZE) {
+                    this.showToast('File exceeds the 350 MB maximum size limit.', 'error');
+                    this.clearDecryptFileData();
+                    return;
+                }
+
+                this.selectedDecryptFile = file;
+                document.getElementById('decrypt-file-name').textContent = file.name;
+                const btn = document.getElementById('decrypt-file-btn');
+                btn.disabled = false;
+                btn.className = 'w-full py-4 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-semibold rounded-2xl shadow-lg shadow-emerald-600/25 transition flex items-center justify-center space-x-2 cursor-pointer';
+            }
+
+            async encryptFile() {
+                const passphrase = document.getElementById('passphrase-input').value;
+                if (!passphrase) {
+                    this.showToast('Please enter an encryption passphrase.', 'error');
+                    return;
+                }
+                if (!this.selectedEncryptFile) {
+                    this.showToast('Please select a file to encrypt.', 'error');
+                    return;
+                }
+
+                try {
+                    document.getElementById('encrypt-progress-container').classList.remove('hidden');
+                    document.getElementById('encrypt-progress-bar').style.width = '20%';
+                    document.getElementById('encrypt-progress-percent').textContent = '20%';
+
+                    const fileBuffer = await this.selectedEncryptFile.arrayBuffer();
+                    
+                    document.getElementById('encrypt-progress-bar').style.width = '40%';
+                    document.getElementById('encrypt-progress-percent').textContent = '40%';
+
+                    const salt = window.crypto.getRandomValues(new Uint8Array(16));
+                    const iv = window.crypto.getRandomValues(new Uint8Array(12));
+                    const key = await this.deriveKey(passphrase, salt, ['encrypt']);
+
+                    const ciphertext = await window.crypto.subtle.encrypt(
+                        { name: 'AES-GCM', iv: iv },
+                        key,
+                        fileBuffer
+                    );
+
+                    document.getElementById('encrypt-progress-bar').style.width = '80%';
+                    document.getElementById('encrypt-progress-percent').textContent = '80%';
+
+                    // Header formatting: [FileNameLength (2 bytes)] + [FileName] + [Salt (16)] + [IV (12)] + [Ciphertext]
+                    const enc = new TextEncoder();
+                    const fileNameBytes = enc.encode(this.selectedEncryptFile.name);
+                    if (fileNameBytes.length > 65535) {
+                        throw new Error('Filename is too long.');
+                    }
+
+                    const headerLenBytes = new Uint8Array(2);
+                    new DataView(headerLenBytes.buffer).setUint16(0, fileNameBytes.length, false);
+
+                    const totalLength = 2 + fileNameBytes.byteLength + salt.byteLength + iv.byteLength + ciphertext.byteLength;
+                    const combined = new Uint8Array(totalLength);
+
+                    let offset = 0;
+                    combined.set(headerLenBytes, offset); offset += 2;
+                    combined.set(fileNameBytes, offset); offset += fileNameBytes.byteLength;
+                    combined.set(salt, offset); offset += salt.byteLength;
+                    combined.set(iv, offset); offset += iv.byteLength;
+                    combined.set(new Uint8Array(ciphertext), offset);
+
+                    // Use native async base64 encoding
+                    const base64Payload = await this.arrayBufferToBase64Async(combined.buffer);
+                    
+                    // Create visual HTML wrapper with hidden payload data
+                    const fileTextContent = `<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="original-filename" content="encrypted_data">
+    <title>Secure Encrypted File</title>
+    <style>
+        body { font-family: system-ui, -apple-system, sans-serif; background-color: #f8fafc; color: #0f172a; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; margin: 0; padding: 20px; text-align: center; }
+        .container { background-color: #ffffff; padding: 40px; border-radius: 12px; box-shadow: 0 10px 15px -3px rgba(0,0,0,0.1); max-width: 500px; border: 1px solid #e2e8f0; }
+        h1 { color: #ef4444; margin-top: 0; }
+        svg { width: 64px; height: 64px; color: #ef4444; margin-bottom: 20px; }
+        p { color: #475569; line-height: 1.5; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+        </svg>
+        <h1>Encrypted File Payload</h1>
+        <p>This file is encrypted (AES-256-GCM). It contains hidden binary data that cannot be accessed directly.</p>
+        <p>To access the contents, upload this <b>.html</b> file back to the Secure AES Tool along with your password.</p>
+    </div>
+    <div style="display: none;" id="encrypted-payload">
+<!-- ENCRYPTED_PAYLOAD_START -->
+${base64Payload}
+<!-- ENCRYPTED_PAYLOAD_END -->
+    </div>
+</body>
+</html>`;
+
+                    document.getElementById('encrypt-progress-bar').style.width = '100%';
+                    document.getElementById('encrypt-progress-percent').textContent = '100%';
+
+                    // Determine output filename based on user selection
+                    let originalName = this.selectedEncryptFile.name;
+                    let downloadName = "";
+                    const obscureName = document.getElementById('obscure-name-checkbox').checked;
+                    
+                    if (obscureName) {
+                        // Generate a random 16-character hex string for the filename
+                        const randomBytes = new Uint8Array(8);
+                        window.crypto.getRandomValues(randomBytes);
+                        const randomHex = Array.from(randomBytes).map(b => b.toString(16).padStart(2, '0')).join('');
+                        downloadName = `${randomHex}.html`;
+                    } else {
+                        // Strip original extension and replace with .html
+                        const lastDotIndex = originalName.lastIndexOf('.');
+                        const baseName = lastDotIndex !== -1 ? originalName.substring(0, lastDotIndex) : originalName;
+                        downloadName = baseName + ".html";
+                    }
+
+                    // Trigger Download as .html explicitly formatting string as raw UTF-8 octet-stream
+                    const blob = new Blob([fileTextContent], { type: 'application/octet-stream' });
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = downloadName;
+                    document.body.appendChild(a);
+                    a.click();
+                    document.body.removeChild(a);
+                    URL.revokeObjectURL(url);
+
+                    this.showToast('File encrypted & saved as .html successfully!');
+                    
+                    // Clear file data and password from UI and memory post-encryption
+                    this.clearEncryptFileData();
+
+                } catch (err) {
+                    console.error(err);
+                    this.showToast('File encryption failed.', 'error');
+                }
+            }
+
+            async decryptFile() {
+                const passphrase = document.getElementById('passphrase-input').value;
+                if (!passphrase) {
+                    this.showToast('Please enter your passphrase.', 'error');
+                    return;
+                }
+                if (!this.selectedDecryptFile) {
+                    this.showToast('Please select an encrypted .html file to decrypt.', 'error');
+                    return;
+                }
+
+                try {
+                    document.getElementById('decrypt-progress-container').classList.remove('hidden');
+                    document.getElementById('decrypt-progress-bar').style.width = '20%';
+                    document.getElementById('decrypt-progress-percent').textContent = '20%';
+
+                    const textContent = await this.selectedDecryptFile.text();
+                    
+                    // Extract base64 payload from HTML wrapper
+                    let base64Data = textContent.trim();
+                    if (base64Data.includes('<!-- ENCRYPTED_PAYLOAD_START -->')) {
+                        const parts = base64Data.split('<!-- ENCRYPTED_PAYLOAD_START -->');
+                        if (parts.length >= 2) {
+                            const payloadParts = parts[1].split('<!-- ENCRYPTED_PAYLOAD_END -->');
+                            base64Data = payloadParts[0].trim();
+                        }
+                    } else if (base64Data.includes('--- BEGIN AES-256 SECURE FILE VAULT ---')) {
+                        // Fallback logic for legacy plain-text format
+                        const parts = base64Data.split('---');
+                        if (parts.length >= 3) {
+                            base64Data = parts[2].trim();
+                        }
+                    }
+
+                    // CRITICAL FIX: Strip all whitespace/newlines from extracted base64 string
+                    base64Data = base64Data.replace(/[\r\n\s]+/g, '');
+
+                    document.getElementById('decrypt-progress-bar').style.width = '40%';
+                    document.getElementById('decrypt-progress-percent').textContent = '40%';
+
+                    // Decode Base64 natively
+                    const fileBuffer = await this.base64ToArrayBufferAsync(base64Data);
+                    const dataView = new DataView(fileBuffer);
+
+                    let offset = 0;
+                    const fileNameLength = dataView.getUint16(offset, false);
+                    offset += 2;
+
+                    // Extracts and Restores the original filename and extension natively
+                    const fileNameBytes = new Uint8Array(fileBuffer, offset, fileNameLength);
+                    const dec = new TextDecoder();
+                    const originalFileName = dec.decode(fileNameBytes);
+                    offset += fileNameLength;
+
+                    const salt = new Uint8Array(fileBuffer, offset, 16);
+                    offset += 16;
+
+                    const iv = new Uint8Array(fileBuffer, offset, 12);
+                    offset += 12;
+
+                    const ciphertext = fileBuffer.slice(offset);
+
+                    document.getElementById('decrypt-progress-bar').style.width = '70%';
+                    document.getElementById('decrypt-progress-percent').textContent = '70%';
+
+                    const key = await this.deriveKey(passphrase, salt, ['decrypt']);
+                    const decrypted = await window.crypto.subtle.decrypt(
+                        { name: 'AES-GCM', iv: new Uint8Array(iv) },
+                        key,
+                        ciphertext
+                    );
+
+                    document.getElementById('decrypt-progress-bar').style.width = '100%';
+                    document.getElementById('decrypt-progress-percent').textContent = '100%';
+
+                    // CRITICAL FIX: Explicitly assign application/octet-stream so browser does not corrupt binary format
+                    const blob = new Blob([decrypted], { type: 'application/octet-stream' });
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = originalFileName;
+                    document.body.appendChild(a);
+                    a.click();
+                    document.body.removeChild(a);
+                    URL.revokeObjectURL(url);
+
+                    this.showToast(`File decrypted & restored as "${originalFileName}"!`);
+                    
+                    // Clear file data and password from UI and memory post-decryption
+                    this.clearDecryptFileData();
+
+                } catch (err) {
+                    console.error(err);
+                    this.showToast('File decryption failed! Wrong passphrase or corrupted file.', 'error');
+                }
+            }
+        }
+
+        const vaultApp = new AESVaultApp();
+    </script>
+</body>
+</html>
